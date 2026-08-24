@@ -1,0 +1,10 @@
+#separator \x09
+#set_separator	,
+#empty_field	(empty)
+#unset_field	-
+#path	pqc
+#open	2026-08-24-11-36-25
+#fields	ts	uid	id_orig_h	id_orig_p	id_resp_h	id_resp_p	group	classification
+#types	time	string	addr	port	addr	port	count	string
+1787567460.404803	CE9zlc4EuqgfLbWhb	127.0.0.1	56366	127.0.0.1	4433	29	classical
+#close	2026-08-24-11-36-25

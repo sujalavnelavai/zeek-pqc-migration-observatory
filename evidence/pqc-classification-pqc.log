@@ -1,0 +1,10 @@
+#separator \x09
+#set_separator	,
+#empty_field	(empty)
+#unset_field	-
+#path	pqc
+#open	2026-08-24-11-37-40
+#fields	ts	uid	id_orig_h	id_orig_p	id_resp_h	id_resp_p	group	classification
+#types	time	string	addr	port	addr	port	count	string
+1787567074.588573	Cx7Cz7ZI5GQIdbAqk	127.0.0.1	55272	127.0.0.1	4433	4588	pqc_hybrid
+#close	2026-08-24-11-37-40
