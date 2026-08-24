@@ -1,2 +1,4 @@
 [package]
+description = Passive TLS cryptographic-migration observability for Zeek, including cryptographic capability, negotiated key exchange, classification, migration state, and fallback telemetry.
+tags = zeek scripting, tls, ssl, cryptography, pqc, post-quantum, hybrid, migration, logging
 script_dir = scripts
