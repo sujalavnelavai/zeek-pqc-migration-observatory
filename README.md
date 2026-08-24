@@ -1,186 +1,273 @@
 # Zeek PQC Migration Observatory
 
-`zeek-pqc-migration-observatory` is a Zeek community package for passive observability of post-quantum cryptographic (PQC) migration in TLS 1.3 traffic.
+`zeek-pqc-migration` is a Zeek community package for passive TLS
+cryptographic-migration observability.
 
-The project observes TLS handshake key-exchange evidence and classifies the observed migration state as classical, PQC-hybrid, or other registered states. It is designed to provide migration visibility without requiring decryption of application traffic.
+The project is designed to complement algorithm-specific PQC detection
+packages rather than duplicate their basic detection functionality.
 
-## Project Status
+Its purpose is to observe TLS cryptographic telemetry, classify
+cryptographic-agility signals, and produce migration intelligence about
+what clients appear capable of, what is negotiated, and whether a
+hybrid-capable client falls back to a classical key exchange.
 
-**Validated working state**
+## Architecture
 
-The observatory has been validated against:
-
-* classical TLS 1.3 X25519 traffic
-* negative classifier cases
-* PQC-hybrid TLS 1.3 traffic
-* a live TLS 1.3 handshake using `X25519MLKEM768`
-* a captured live PCAP subsequently processed by Zeek
-
-The final live validation successfully produced:
+The project follows this processing model:
 
 ```text
-group=4588
-algorithm=X25519MLKEM768
-classification=pqc_hybrid
+Zeek TLS telemetry
+        |
+        v
+Cryptographic-agility engine
+        |
+        v
+Algorithm / group registry
+        |
+        v
+Migration intelligence
+        |
+        v
+pqc-tls.log
+```
+
+The package currently focuses on TLS 1.3 key-exchange groups.
+
+## What the package observes
+
+The implementation tracks:
+
+* client-supported TLS key-exchange groups
+* client key-share groups
+* server key-share groups
+* negotiated key-exchange group
+* algorithm name
+* cryptographic classification
+* client cryptographic capability
+* migration state
+* fallback indication
+
+The migration layer distinguishes between observed capability and the
+key exchange actually selected by the TLS session.
+
+## Unified migration output
+
+The primary migration-observability output is:
+
+```text
+pqc-tls.log
+```
+
+Each record contains:
+
+| Field                       | Description                                  |
+| --------------------------- | -------------------------------------------- |
+| `ts`                        | Network timestamp                            |
+| `uid`                       | Zeek connection identifier                   |
+| `id_orig_h`                 | Originating host                             |
+| `id_orig_p`                 | Originating port                             |
+| `id_resp_h`                 | Responding host                              |
+| `id_resp_p`                 | Responding port                              |
+| `client_capability`         | Observed client cryptographic capability     |
+| `negotiated_group`          | Negotiated TLS key-exchange group            |
+| `negotiated_algorithm`      | Registry algorithm name                      |
+| `negotiated_classification` | `classical`, `pqc_hybrid`, or `unknown`      |
+| `migration_state`           | Algorithm-independent migration state        |
+| `fallback`                  | Whether fallback to classical was identified |
+
+For example, a validated hybrid negotiation produces:
+
+```text
 client_capability=hybrid_capable
+negotiated_group=4588
+negotiated_algorithm=X25519MLKEM768
+negotiated_classification=pqc_hybrid
 migration_state=hybrid_negotiated
 fallback=F
 ```
 
-The complete validation record is available in `FINAL_VALIDATION_RECORD.md`.
+## Migration states
 
-## Architecture
+The migration engine currently supports these states:
 
-The observatory separates:
+### `hybrid_negotiated`
 
-1. **TLS observation** — obtains key-exchange evidence from the TLS handshake.
-2. **Algorithm registry** — maps TLS group identifiers to algorithm names and migration classifications.
-3. **Classification** — identifies classical, hybrid, and PQC-related groups.
-4. **Migration state** — combines capability and negotiated-group evidence.
-5. **Logging** — records the resulting migration observations in Zeek logs.
+A PQC-hybrid group was selected and the client was observed to have
+hybrid capability.
 
-The main Zeek loading path is:
+### `fallback_to_classical`
+
+A client with observed hybrid capability negotiated a classical group.
+
+This state is intended to provide migration intelligence rather than
+merely report that a classical algorithm was observed.
+
+### `classical_negotiated`
+
+A classical group was negotiated and no hybrid capability was observed.
+
+### `hybrid_selected_without_observed_capability`
+
+A hybrid group was selected, but the available passive telemetry did not
+show corresponding client hybrid capability.
+
+### `handshake_failure`
+
+A TLS handshake failed after relevant client cryptographic capability
+was observed, but no negotiated key-exchange group could be established.
+
+### `unknown_negotiation`
+
+The observed negotiation cannot be mapped to a known migration state.
+
+## Cryptographic registry
+
+Algorithm-specific information is kept in the registry rather than
+embedded throughout the migration logic.
+
+The current validated registry includes:
+
+|  Group | Algorithm        | Classification |
+| -----: | ---------------- | -------------- |
+|   `23` | `secp256r1`      | `classical`    |
+|   `24` | `secp384r1`      | `classical`    |
+|   `25` | `secp521r1`      | `classical`    |
+|   `29` | `x25519`         | `classical`    |
+|   `30` | `x448`           | `classical`    |
+| `4588` | `X25519MLKEM768` | `pqc_hybrid`   |
+
+The migration logic consumes the registry classification instead of
+hard-coding individual algorithm names into migration decisions.
+
+This allows additional algorithms to be incorporated through the
+registry as the supported TLS ecosystem evolves.
+
+## Relationship to PQC detection
+
+The project is intentionally not positioned as a replacement for
+algorithm-specific PQC detection.
+
+The distinction is:
 
 ```text
-scripts/__load__.zeek
-        |
-        +-- types.zeek
-        +-- registry.zeek
-        +-- logging.zeek
-        +-- main.zeek
-        +-- classifier.zeek
-        +-- migration.zeek
+PQC detection:
+    "Was a PQC or hybrid algorithm observed?"
+
+Migration observability:
+    "What cryptographic capability was observed,
+     what was negotiated,
+     and what does that imply about migration state?"
 ```
 
-## PQC Validation
+The existing `pqc.log` output remains useful as passive classification
+telemetry.
 
-The live validation used a custom OpenSSL 3.2.4 installation with liboqs and the OQS provider.
+The `pqc-migration.log` output provides the migration-oriented record.
 
-The validated TLS group was:
+The `pqc-tls.log` output provides the unified TLS migration record.
+
+## Validation
+
+The current implementation has been validated against:
+
+| Scenario               |   Group | Expected classification | Result |
+| ---------------------- | ------: | ----------------------- | ------ |
+| Classical TLS 1.3      |    `29` | `classical`             | PASS   |
+| X25519MLKEM768 TLS 1.3 |  `4588` | `pqc_hybrid`            | PASS   |
+| Unrecognized group     | `12345` | `unknown`               | PASS   |
+
+The migration output has additionally been validated against the
+X25519MLKEM768 TLS 1.3 evidence.
+
+Expected unified record:
 
 ```text
+hybrid_capable
+4588
 X25519MLKEM768
+pqc_hybrid
+hybrid_negotiated
+F
 ```
 
-The live TLS 1.3 client successfully connected to a local OpenSSL TLS server with:
+## Automated tests
 
-```text
-Protocol version: TLSv1.3
-Ciphersuite: TLS_AES_256_GCM_SHA384
+Run the BTest regression suite:
+
+```bash
+./testing/run-btest.sh
 ```
 
-The certificate used for the isolated test was intentionally self-signed. The resulting certificate verification warning is therefore expected and is unrelated to the PQC key-exchange negotiation.
-
-The important migration evidence was obtained from the TLS handshake itself and from the resulting Zeek classification.
-
-## Live PCAP Evidence
-
-The primary live evidence file is:
-
-```text
-evidence/live-x25519mlkem768-validation.pcap
-```
-
-Validation properties:
-
-* PCAP format: libpcap
-* captured packets: 15
-* transport: TCP
-* endpoint: `127.0.0.1:4433`
-* TLS version: TLS 1.3
-* negotiated group: `X25519MLKEM768`
-* Zeek classification: `pqc_hybrid`
-* migration state: `hybrid_negotiated`
-* fallback: `F`
-
-SHA-256:
-
-```text
-8baef39c0a3d9e6f4a3aacaf642d3aad5f4886dc6f0fcd9199b0542fcc9d7560
-```
-
-## Automated Tests
-
-The project currently has three BTests:
-
-```text
-classical-pcap.test       PASS
-classifier-negative.test  PASS
-pqc-pcap.test             PASS
-```
-
-Final result:
+Expected result:
 
 ```text
 all 3 tests successful
 BTEST: PASS
 ```
 
-The non-fatal warning concerning `PQC::is_classical_group` does not prevent successful execution or validation.
-
-## Evidence and Documentation
-
-### Documentation
-
-* `docs/architecture.md` — system architecture
-* `docs/classification.md` — classification model
-* `docs/registry.md` — algorithm/group registry
-* `docs/limitations.md` — known limitations
-* `test-matrix.md` — validation matrix
-
-### Validation records
-
-* `FINAL_VALIDATION_RECORD.md`
-* `VALIDATION_STATUS.md`
-* `validation-manifest.md`
-* `validation-evidence.csv`
-
-### PCAP evidence
-
-* `evidence/classical-x25519-tls13-validation.pcap`
-* `evidence/pqc-x25519mlkem768-validation.pcap`
-* `evidence/live-x25519mlkem768-validation.pcap`
-* `evidence/classifier-negative-test.txt`
-
-## Reproducing the Zeek Validation
-
-From the repository root:
+Run the validation suite:
 
 ```bash
-bash testing/run-btest.sh
+./testing/run-validation.sh
 ```
 
-For the live PCAP:
-
-```bash
-zeek -C \
-    -r evidence/live-x25519mlkem768-validation.pcap \
-    scripts/__load__.zeek
-```
-
-The expected classification includes:
+Expected result:
 
 ```text
-PQC_CLASSIFICATION ... group=4588 classification=pqc_hybrid
-PQC_MIGRATION ... capability=hybrid_capable group=4588 state=hybrid_negotiated fallback=F
+PASS: 3
+FAIL: 0
+OVERALL RESULT: PASS
 ```
 
-## Scope and Limitations
+## Evidence
 
-This project provides **observability**, not cryptographic decryption.
+Validation packet captures and classification evidence are stored under:
 
-It does not claim that every TLS implementation exposes identical handshake metadata, nor does a captured TLS group by itself prove that every cryptographic operation in an application is post-quantum.
+```text
+evidence/
+```
 
-The current implementation focuses on TLS 1.3 key-exchange-group evidence and a registry-driven classification model.
+The evidence includes classical TLS 1.3, PQC-hybrid TLS 1.3, and
+negative/unknown-group validation cases.
 
-The isolated live test uses a self-signed certificate. Certificate verification was therefore intentionally not used as a trust validation mechanism for the demonstration.
+## Scope
 
-## Safety and Isolation
+The current implementation focuses on passive TLS 1.3 key-exchange
+telemetry and migration classification.
 
-The live PQC demonstration uses a local TLS endpoint on `127.0.0.1:4433` and an isolated test certificate.
+It does not claim complete coverage of every current or future PQC,
+hybrid, TLS, or cryptographic-agility mechanism.
 
-The custom OpenSSL installation is kept separate from the system OpenSSL installation. The system OpenSSL remains unchanged.
+The classification registry is deliberately extensible, but individual
+future algorithms must still be added and validated before they can be
+classified.
 
-## License
+## Limitations
 
-See `LICENSE`.
+Passive TLS telemetry is constrained by what Zeek can observe from the
+TLS handshake.
+
+The package does not infer cryptographic intent that is not present in
+observable protocol metadata.
+
+A passive observer may also be unable to distinguish every possible
+reason for a classical negotiation. Therefore a migration state should
+be interpreted as evidence derived from observed TLS telemetry, not as
+proof of administrative policy or endpoint configuration.
+
+## Project status
+
+The current implementation provides:
+
+* TLS 1.3 cryptographic telemetry collection
+* cryptographic-agility classification
+* algorithm registry abstraction
+* client capability detection
+* migration-state classification
+* fallback identification
+* unified `pqc-tls.log` output
+* BTest regression coverage
+* validated classical, hybrid, and unknown-group evidence
+
+The project is suitable for continued community review and expansion
+of the cryptographic registry and migration-state model.
