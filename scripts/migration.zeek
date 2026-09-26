@@ -73,18 +73,45 @@ function client_capability(c: connection): string
 	local state = connection_state[uid];
 
 	local client_hybrid =
-		has_classification(state$client_key_share_groups, "pqc_hybrid");
+		has_classification(state$initial_client_key_share_groups,
+		                   "pqc_hybrid");
 
 	local client_classical =
-		has_classification(state$client_key_share_groups, "classical");
+		has_classification(state$initial_client_key_share_groups,
+		                   "classical");
 
 	if ( ! client_hybrid )
 		client_hybrid =
-			has_classification(state$client_supported_groups, "pqc_hybrid");
+			has_classification(state$initial_client_supported_groups,
+			                   "pqc_hybrid");
 
 	if ( ! client_classical )
 		client_classical =
-			has_classification(state$client_supported_groups, "classical");
+			has_classification(state$initial_client_supported_groups,
+			                   "classical");
+
+	# Fall back to current ClientHello state when no initial
+	# capability was preserved.
+	if ( ! client_hybrid && ! client_classical )
+		{
+		client_hybrid =
+			has_classification(state$client_key_share_groups,
+			                   "pqc_hybrid");
+
+		client_classical =
+			has_classification(state$client_key_share_groups,
+			                   "classical");
+
+		if ( ! client_hybrid )
+			client_hybrid =
+				has_classification(state$client_supported_groups,
+				                   "pqc_hybrid");
+
+		if ( ! client_classical )
+			client_classical =
+				has_classification(state$client_supported_groups,
+				                   "classical");
+		}
 
 	if ( client_hybrid && client_classical )
 		return "classical_and_hybrid";
@@ -139,11 +166,46 @@ function write_migration(c: connection, capability: string,
 
 event key_share_observed(c: connection, is_client: bool, group: count)
 	{
-	# Only the server-side key share represents the selected
-	# negotiated group in the validated TLS 1.3 evidence.
+	# Server key shares are only candidates until the corresponding
+	# ServerHello is known not to be a HelloRetryRequest.
 	if ( is_client )
 		return;
 
+	local uid = c$uid;
+
+	if ( uid !in connection_state )
+		return;
+
+	local state = connection_state[uid];
+	state$server_key_share_groups = vector();
+	state$server_key_share_groups[0] = group;
+	connection_state[uid] = state;
+	}
+
+event ssl_server_hello(c: connection, version: count,
+                           record_version: count, possible_ts: time,
+                           server_random: string, session_id: string,
+                           cipher: count, comp_method: count)
+	{
+	if ( ! c?$ssl )
+		return;
+
+	local uid = c$uid;
+
+	if ( uid !in connection_state )
+		return;
+
+	# Zeek's native SSL analyzer marks HRR ServerHello messages
+	# with c$ssl$hrr_seen before this handler runs.
+	if ( c$ssl$hrr_seen )
+		return;
+
+	local state = connection_state[uid];
+
+	if ( |state$server_key_share_groups| == 0 )
+		return;
+
+	local group = state$server_key_share_groups[0];
 	local capability = client_capability(c);
 	local negotiated = classify_group(group);
 	local migration = "unknown_negotiation";
@@ -168,17 +230,13 @@ event key_share_observed(c: connection, is_client: bool, group: count)
 		else
 			migration = "classical_negotiated";
 		}
-	else
-		migration = "unknown_negotiation";
 
 	write_migration(c, capability, group, migration, fallback);
-	}
 
-event ssl_established(c: connection)
-	{
-	# Successful TLS establishment requires no additional migration
-	# action here because the selected server key share has already
-	# been processed by key_share_observed().
+	# Prevent duplicate migration emission if another non-HRR
+	# ServerHello event is observed for the same connection.
+	state$server_key_share_groups = vector();
+	connection_state[uid] = state;
 	}
 
 event ssl_alert(c: connection, is_client: bool, level: count, desc: count)

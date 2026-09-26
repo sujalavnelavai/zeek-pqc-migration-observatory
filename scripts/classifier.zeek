@@ -24,11 +24,6 @@ export {
 		event(c: connection, is_client: bool, group: count);
 	}
 
-function is_classical_group(group: count): bool
-	{
-	return registry_classify(group) == "classical";
-	}
-
 function classify_group(group: count): string
 	{
 	return registry_classify(group);

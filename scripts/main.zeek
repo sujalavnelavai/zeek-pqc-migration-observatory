@@ -13,6 +13,8 @@ function ensure_connection_state(c: connection): string
 			$server_supported_groups = vector(),
 			$client_key_share_groups = vector(),
 			$server_key_share_groups = vector(),
+			$initial_client_supported_groups = vector(),
+			$initial_client_key_share_groups = vector(),
 			$saw_hrr = F
 		];
 		}
@@ -27,7 +29,13 @@ event ssl_extension_elliptic_curves(c: connection, is_client: bool,
 	local state = connection_state[uid];
 
 	if ( is_client )
+		{
 		state$client_supported_groups = curves;
+
+		# Preserve the initial ClientHello capability across HRR.
+		if ( |state$initial_client_supported_groups| == 0 )
+			state$initial_client_supported_groups = curves;
+		}
 	else
 		state$server_supported_groups = curves;
 
@@ -41,7 +49,13 @@ event ssl_extension_key_share(c: connection, is_client: bool,
 	local state = connection_state[uid];
 
 	if ( is_client )
+		{
 		state$client_key_share_groups = curves;
+
+		# Preserve the initial ClientHello key shares across HRR.
+		if ( |state$initial_client_key_share_groups| == 0 )
+			state$initial_client_key_share_groups = curves;
+		}
 	else
 		state$server_key_share_groups = curves;
 
