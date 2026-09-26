@@ -43,6 +43,32 @@ OVERALL RESULT: PASS
 | `testing/classifier-negative.zeek` | `15c8c9dc1ab37c0b8711f3567deb3d114c44a3cb142f398c3f43b39fa0306d65` |
 | `testing/run-validation.sh` | `b3ad3bf85a6c13fb5e465f58c1ace889c701af65a19d265a8dbc9d5d75fff2d1` |
 
+## TLS 1.3 HelloRetryRequest Regression
+
+A genuine TLS 1.3 HelloRetryRequest capture was replayed using the
+installed package and Zeek's native SSL analyzer.
+
+Capture:
+
+`/usr/local/zeek/share/btest/data/pcaps/tls/hrr.pcap`
+
+Observed result:
+
+- Initial ClientHello key-share group 21 was classified as `unknown`.
+- The HRR ServerHello was not treated as the final negotiated result.
+- The final ServerHello selected group 23 (`secp256r1`).
+- The final migration state was `classical_negotiated`.
+- Exactly one migration record was emitted for the connection.
+- No duplicate migration record was emitted for the HRR sequence.
+
+Result:
+
+**PASS**
+
+This validates the implemented HelloRetryRequest handling for the
+tested TLS 1.3 HRR sequence. It does not claim exhaustive coverage of
+all possible TLS 1.3 HelloRetryRequest scenarios.
+
 ## Classifier
 
 Validated production classifier:
