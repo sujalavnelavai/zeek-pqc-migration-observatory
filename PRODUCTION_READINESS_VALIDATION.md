@@ -178,19 +178,43 @@ all current or future TLS supported groups.
 Obsolete pre-standard hybrid identifiers were not added merely because
 they appeared in historical captures.
 
-## Known Validation Gap
+## Fallback Validation
 
-Hybrid-to-classical fallback detection is implemented but has not yet
-been validated against a genuine packet capture containing both:
+Hybrid-to-classical fallback detection was independently validated
+against a genuine locally captured TLS 1.3 handshake.
 
-1. a hybrid-capable client, and
-2. a classical-only negotiated server response.
+The test used Go 1.24.6 with:
 
-The available OpenSSL 3.0.2 environment does not provide the required
-PQC TLS capability for generating such a capture.
+- a default TLS client with hybrid capability enabled;
+- a server restricted to classical X25519 using
+  `CurvePreferences: []tls.CurveID{tls.X25519}`.
 
-Therefore fallback detection is recorded as implemented but
-not yet independently validated.
+Native Zeek packet inspection observed:
+
+- client key-share groups: 4588 and 29;
+- server key-share group: 29;
+- a corresponding ServerHello.
+
+The installed public `zeek-pqc-migration-observatory` package was then
+replayed against the same packet capture.
+
+Observed package telemetry:
+
+- group 4588 classified as `X25519MLKEM768` / `pqc_hybrid`;
+- group 29 classified as `x25519` / `classical`;
+- client capability classified as `classical_and_hybrid`;
+- negotiated group: 29 (`x25519`);
+- migration state: `fallback_to_classical`;
+- fallback: `T`;
+- exactly one migration record emitted;
+- no package diagnostics.
+
+Result: PASS.
+
+This validates the implemented hybrid-to-classical fallback path for
+the tested TLS 1.3 client/server combination. It does not claim
+exhaustive validation across all TLS implementations or all PQC
+supported groups.
 
 ## Production-Readiness Assessment
 
