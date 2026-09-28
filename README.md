@@ -11,6 +11,34 @@ cryptographic-agility signals, and produce migration intelligence about
 what clients appear capable of, what is negotiated, and whether a
 hybrid-capable client falls back to a classical key exchange.
 
+## Installation
+
+Install the package using the Zeek Package Manager (`zkg`):
+
+```bash
+zkg refresh
+zkg install zeek/sujalavnelavai/zeek-pqc-migration-observatory.git
+```
+
+Then load the package when running Zeek:
+
+```bash
+zeek zeek-pqc-migration-observatory
+```
+
+To analyze a packet capture:
+
+```bash
+zeek -C -r capture.pcap zeek-pqc-migration-observatory
+```
+
+The package writes the following logs by default:
+
+- `pqc.log` — observed TLS key-exchange groups and classifications.
+- `pqc-migration.log` — migration state and fallback telemetry.
+- `pqc-tls.log` — TLS migration telemetry with connection metadata.
+
+
 ## Architecture
 
 The project follows this processing model:
