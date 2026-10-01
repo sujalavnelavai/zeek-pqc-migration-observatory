@@ -2,5 +2,6 @@
 description = Passive TLS cryptographic-migration observability for Zeek, including cryptographic capability, negotiated key exchange, classification, migration state, and fallback telemetry.
 tags = zeek scripting, tls, ssl, cryptography, pqc, post-quantum, hybrid, migration, logging
 script_dir = scripts
-zeek >=8.2.1
+depends =
+  zeek >=8.2.1
 test_command = ./testing/run-btest.sh
