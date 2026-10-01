@@ -1,7 +1,7 @@
 #!/bin/bash
 set -u
 
-PROJECT="$HOME/zeek-pqc-migration-observatory"
+PROJECT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 cd "$PROJECT" || exit 1
 
