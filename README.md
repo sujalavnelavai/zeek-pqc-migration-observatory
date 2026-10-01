@@ -38,6 +38,69 @@ The package writes the following logs by default:
 - `pqc-migration.log` — migration state and fallback telemetry.
 - `pqc-tls.log` — TLS migration telemetry with connection metadata.
 
+## Using the logs
+
+The package produces three related logs for different levels of TLS cryptographic-migration analysis.
+
+### `pqc.log` — observed key-exchange groups
+
+`pqc.log` records TLS key-exchange groups observed during the handshake and classifies them according to the package's supported registry.
+
+For example:
+
+```text
+#fields	ts	uid	id_orig_h	id_orig_p	id_resp_h	id_resp_p	group	algorithm	classification
+...	...	...	...	...	...	29	X25519	classical
+...	...	...	...	...	...	4588	X25519MLKEM768	pqc_hybrid
+```
+
+This log is useful when the question is: **"Which key-exchange groups are clients and servers actually using?"**
+
+### `pqc-migration.log` — migration state
+
+`pqc-migration.log` combines the client's observed capability with the final negotiated group and records the resulting migration state.
+
+For example, a hybrid negotiation can appear as:
+
+```text
+client_capability=hybrid_capable
+negotiated_group=4588
+negotiated_algorithm=X25519MLKEM768
+negotiated_classification=pqc_hybrid
+migration_state=hybrid_negotiated
+fallback=F
+```
+
+This indicates that the connection demonstrated hybrid capability and negotiated the validated hybrid group.
+
+A fallback case can appear as:
+
+```text
+client_capability=classical_and_hybrid
+negotiated_group=29
+negotiated_algorithm=X25519
+negotiated_classification=classical
+migration_state=fallback_to_classical
+fallback=T
+```
+
+This indicates that the client demonstrated both classical and hybrid capability, but the connection ultimately negotiated the classical group.
+
+This makes the migration log useful for identifying connections where hybrid capability exists but negotiation still results in classical cryptography.
+
+### `pqc-tls.log` — migration telemetry with connection context
+
+`pqc-tls.log` contains the migration fields together with the connection's origin and responder addresses and ports.
+
+This is useful when the question is: **"Which connections are using which cryptographic migration state?"**
+
+For example, an analyst can use the connection metadata together with `migration_state` to identify the specific traffic associated with hybrid negotiations or fallback-to-classical events.
+
+In summary:
+
+* **`pqc.log`** answers: *What key-exchange groups were observed?*
+* **`pqc-migration.log`** answers: *What cryptographic migration state did the negotiation produce?*
+* **`pqc-tls.log`** answers: *Which network connections produced those migration states?*
 
 ## Architecture
 
