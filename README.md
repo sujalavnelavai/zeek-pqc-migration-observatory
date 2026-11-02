@@ -360,6 +360,12 @@ reason for a classical negotiation. Therefore a migration state should
 be interpreted as evidence derived from observed TLS telemetry, not as
 proof of administrative policy or endpoint configuration.
 
+Passive TLS telemetry is constrained by what Zeek can observe from the TLS handshake.
+
+The package does not infer cryptographic intent that is not present in observable protocol metadata.
+
+A passive observer may also be unable to distinguish every possible reason for a classical negotiation. Therefore a migration state should be interpreted as evidence derived from observed TLS telemetry, not as proof of administrative policy or endpoint configuration.
+
 ## Project status
 
 The current implementation provides:
