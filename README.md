@@ -11,6 +11,20 @@ cryptographic-agility signals, and produce migration intelligence about
 what clients appear capable of, what is negotiated, and whether a
 hybrid-capable client falls back to a classical key exchange.
 
+## Relevance to post-quantum migration
+
+NISTIR 8547, *Transition to Post-Quantum Cryptography Standards*, provides guidance for transitioning from quantum-vulnerable cryptographic algorithms to post-quantum standards.
+
+The Zeek PQC Migration Observatory contributes network-level visibility to this broader migration process by passively observing TLS 1.3 key-exchange capabilities, negotiated groups, and migration states.
+
+The package can help analysts identify where hybrid key exchange is observed, where classical negotiation persists, and where TLS negotiation fails.
+
+It is an observability tool, not a NIST compliance assessment, cryptographic validation engine, or complete enterprise cryptographic inventory.
+
+References:
+- [NISTIR 8547](https://csrc.nist.gov/pubs/ir/8547/final)
+- [NIST NCCoE Migration to Post-Quantum Cryptography](https://www.nccoe.nist.gov/applied-cryptography/migration-to-pqc)
+
 ## Installation
 
 Install the package using the Zeek Package Manager (`zkg`):
